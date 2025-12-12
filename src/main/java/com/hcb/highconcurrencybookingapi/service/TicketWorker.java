@@ -1,14 +1,11 @@
 package com.hcb.highconcurrencybookingapi.service;
 
 import com.hcb.highconcurrencybookingapi.dto.TicketRequest;
-import com.hcb.highconcurrencybookingapi.model.Seat;
-import com.hcb.highconcurrencybookingapi.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 
@@ -17,7 +14,7 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class TicketWorker {
 
-    private final SeatRepository seatRepository;
+    private final SeatService seatService;
     private final StringRedisTemplate redisTemplate;
 
     @RabbitListener(queues = "ticketQueue")
@@ -34,10 +31,10 @@ public class TicketWorker {
         }
 
         try {
-            finalizarCompraNoBanco(request);
+            seatService.reservarAssento(request);
+
             redisTemplate.opsForValue().set(statusKey, "CONFIRMED");
             redisTemplate.delete(lockKey);
-
         } catch (RuntimeException e) {
             if ("Já vendido".equals(e.getMessage())) {
                 log.info("Tentativa tardia de compra para assento vendido.");
@@ -48,18 +45,5 @@ public class TicketWorker {
             }
             redisTemplate.delete(lockKey);
         }
-    }
-
-    @Transactional
-    public void finalizarCompraNoBanco(TicketRequest request) {
-        Seat seat = seatRepository.findById(request.seatId())
-                .orElseThrow(() -> new RuntimeException("Assento não existe"));
-
-        if (seat.getReservedBy() != null) {
-            throw new RuntimeException("Já vendido");
-        }
-
-        seat.setReservedBy(request.userId());
-        seatRepository.save(seat);
     }
 }

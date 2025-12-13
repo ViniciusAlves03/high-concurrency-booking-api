@@ -1,6 +1,7 @@
 package com.hcb.highconcurrencybookingapi.service;
 
 import com.hcb.highconcurrencybookingapi.dto.TicketRequest;
+import com.hcb.highconcurrencybookingapi.exception.BusinessException;
 import com.hcb.highconcurrencybookingapi.model.Seat;
 import com.hcb.highconcurrencybookingapi.repository.SeatRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,10 +17,10 @@ public class SeatService {
     @Transactional
     public void reservarAssento(TicketRequest request) {
         Seat seat = seatRepository.findById(request.seatId())
-                .orElseThrow(() -> new RuntimeException("Assento não existe"));
+                .orElseThrow(() -> new BusinessException("Assento não existe"));
 
         if (seat.getReservedBy() != null) {
-            throw new RuntimeException("Já vendido");
+            throw new BusinessException("Assento já vendido para outro usuário.");
         }
 
         seat.setReservedBy(request.userId());

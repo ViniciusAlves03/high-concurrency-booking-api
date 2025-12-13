@@ -1,6 +1,8 @@
-package com.hcb.highconcurrencybookingapi.service;
+package com.hcb.highconcurrencybookingapi.background;
 
 import com.hcb.highconcurrencybookingapi.dto.TicketRequest;
+import com.hcb.highconcurrencybookingapi.exception.BusinessException;
+import com.hcb.highconcurrencybookingapi.service.SeatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
@@ -35,14 +37,11 @@ public class TicketWorker {
 
             redisTemplate.opsForValue().set(statusKey, "CONFIRMED");
             redisTemplate.delete(lockKey);
-        } catch (RuntimeException e) {
-            if ("Já vendido".equals(e.getMessage())) {
-                log.info("Tentativa tardia de compra para assento vendido.");
-                redisTemplate.opsForValue().set(statusKey, "FAILED_SEAT_TAKEN");
-            } else {
-                log.error("Erro técnico:", e);
-                redisTemplate.opsForValue().set(statusKey, "ERROR_DB");
-            }
+        } catch (BusinessException e) {
+            redisTemplate.opsForValue().set(statusKey, "FAILED_SEAT_TAKEN");
+            redisTemplate.delete(lockKey);
+        } catch (Exception e) {
+            redisTemplate.opsForValue().set(statusKey, "ERROR_DB");
             redisTemplate.delete(lockKey);
         }
     }

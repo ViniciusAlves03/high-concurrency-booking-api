@@ -1,23 +1,48 @@
+server:
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 10
+
 spring:
   application:
     name: ticket-system
+
+  threads:
+    virtual:
+      enabled: true
 
   datasource:
     url: jdbc:postgresql://localhost:5433/ticketdb
     username: myuser
     password: secret
+    hikari:
+      maximum-pool-size: 50
+      minimum-idle: 10
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
   jpa:
     hibernate:
       ddl-auto: update
-    show-sql: true
+    show-sql: false
+    open-in-view: false
 
   data:
     redis:
       host: localhost
       port: 6379
+      timeout: 2000
 
   rabbitmq:
     host: localhost
     port: 5672
     username: myuser
     password: secret
+    listener:
+      simple:
+        concurrency: 20
+        max-concurrency: 50
+        prefetch: 1
+        acknowledge-mode: auto

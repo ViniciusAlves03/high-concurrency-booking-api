@@ -5,6 +5,8 @@ import com.hcb.highconcurrencybookingapi.exception.BusinessException;
 import com.hcb.highconcurrencybookingapi.service.SeatService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.jspecify.annotations.NonNull;
+import org.slf4j.MDC;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -20,29 +22,42 @@ public class TicketWorker {
     private final StringRedisTemplate redisTemplate;
 
     @RabbitListener(queues = "ticketQueue")
-    public void processTicket(TicketRequest request) {
-        String lockKey = "lock:seat:" + request.seatId();
-        String statusKey = "req:" + request.requestId();
-
-        Boolean lockAcquired = redisTemplate.opsForValue()
-                .setIfAbsent(lockKey, request.userId(), Duration.ofSeconds(5));
-
-        if (Boolean.FALSE.equals(lockAcquired)) {
-            redisTemplate.opsForValue().set(statusKey, "FAILED_SEAT_TAKEN");
-            return;
-        }
+    public void processTicket(@NonNull TicketRequest request) {
+        MDC.put("requestId", request.requestId() != null ? request.requestId().toString() : "SEM-ID");
 
         try {
-            seatService.reservarAssento(request);
+            log.info("Iniciando processamento...");
 
-            redisTemplate.opsForValue().set(statusKey, "CONFIRMED");
-            redisTemplate.delete(lockKey);
-        } catch (BusinessException e) {
-            redisTemplate.opsForValue().set(statusKey, "FAILED_SEAT_TAKEN");
-            redisTemplate.delete(lockKey);
-        } catch (Exception e) {
-            redisTemplate.opsForValue().set(statusKey, "ERROR_DB");
-            redisTemplate.delete(lockKey);
+            String lockKey = "lock:seat:" + request.seatId();
+            String statusKey = "req:" + request.requestId();
+
+            Boolean lockAcquired = redisTemplate.opsForValue()
+                    .setIfAbsent(lockKey, request.userId(), Duration.ofSeconds(5));
+
+            if (Boolean.FALSE.equals(lockAcquired)) {
+                log.warn("Bloqueio de concorrência detectado pelo Redis");
+                redisTemplate.opsForValue().set(statusKey, "FAILED_SEAT_TAKEN");
+                return;
+            }
+
+            try {
+                seatService.reservarAssento(request);
+
+                log.info("Compra confirmada com sucesso");
+                redisTemplate.opsForValue().set(statusKey, "CONFIRMED");
+                redisTemplate.delete(lockKey);
+            } catch (BusinessException e) {
+                log.info("Regra de negócio: {}", e.getMessage());
+                redisTemplate.opsForValue().set(statusKey, "FAILED_SEAT_TAKEN");
+                redisTemplate.delete(lockKey);
+            } catch (Exception e) {
+                log.error("Erro técnico grave:", e);
+                redisTemplate.opsForValue().set(statusKey, "ERROR_DB");
+                redisTemplate.delete(lockKey);
+            }
+
+        } finally {
+            MDC.clear();
         }
     }
 }

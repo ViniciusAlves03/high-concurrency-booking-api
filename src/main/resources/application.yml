@@ -13,9 +13,10 @@ spring:
       enabled: true
 
   datasource:
-    url: jdbc:postgresql://localhost:5433/ticketdb
-    username: myuser
-    password: secret
+    url: jdbc:postgresql://${DB_HOST:localhost}:${POSTGRES_PORT_EXTERNAL:5433}/${POSTGRES_DB:ticketdb}
+    username: ${POSTGRES_USER:myuser}
+    password: ${POSTGRES_PASSWORD:secret}
+
     hikari:
       maximum-pool-size: 50
       minimum-idle: 10
@@ -31,21 +32,27 @@ spring:
 
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
       timeout: 2000
 
   rabbitmq:
-    host: localhost
-    port: 5672
-    username: myuser
-    password: secret
+    host: ${RABBIT_HOST:localhost}
+    port: ${RABBITMQ_PORT_EXTERNAL:5672}
+    username: ${RABBITMQ_USER:myuser}
+    password: ${RABBITMQ_PASSWORD:secret}
     listener:
       simple:
         concurrency: 20
         max-concurrency: 50
         prefetch: 1
         acknowledge-mode: auto
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 1000ms
+          multiplier: 2.0
+          max-interval: 10000ms
 
 logging:
   pattern:

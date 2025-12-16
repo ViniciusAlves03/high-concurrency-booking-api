@@ -3,6 +3,7 @@ package com.hcb.highconcurrencybookingapi.background;
 import com.hcb.highconcurrencybookingapi.dto.TicketRequest;
 import com.hcb.highconcurrencybookingapi.exception.BusinessException;
 import com.hcb.highconcurrencybookingapi.service.SeatService;
+import com.hcb.highconcurrencybookingapi.utils.Messages;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
@@ -23,10 +24,10 @@ public class TicketWorker {
 
     @RabbitListener(queues = "ticketQueue")
     public void processTicket(@NonNull TicketRequest request) {
-        MDC.put("requestId", request.requestId() != null ? request.requestId().toString() : "SEM-ID");
+        MDC.put("requestId", request.requestId() != null ? request.requestId().toString() : "NO-ID");
 
         try {
-            log.info("Iniciando processamento...");
+            log.info("Starting processing...");
 
             String lockKey = "lock:seat:" + request.seatId();
             String statusKey = "req:" + request.requestId();
@@ -35,7 +36,7 @@ public class TicketWorker {
                     .setIfAbsent(lockKey, request.userId(), Duration.ofSeconds(5));
 
             if (Boolean.FALSE.equals(lockAcquired)) {
-                log.warn("Bloqueio de concorrência detectado pelo Redis");
+                log.warn(Messages.Seat.LOCK_FAILED);
                 redisTemplate.opsForValue().set(statusKey, "FAILED_SEAT_TAKEN");
                 return;
             }
@@ -43,17 +44,19 @@ public class TicketWorker {
             try {
                 seatService.reservarAssento(request);
 
-                log.info("Compra confirmada com sucesso");
+                log.info(Messages.Ticket.PROCESSED_SUCCESS);
                 redisTemplate.opsForValue().set(statusKey, "CONFIRMED");
                 redisTemplate.delete(lockKey);
             } catch (BusinessException e) {
-                log.info("Regra de negócio: {}", e.getMessage());
+                log.info("Business rule: {}", e.getMessage());
                 redisTemplate.opsForValue().set(statusKey, "FAILED_SEAT_TAKEN");
                 redisTemplate.delete(lockKey);
             } catch (Exception e) {
-                log.error("Erro técnico grave:", e);
-                redisTemplate.opsForValue().set(statusKey, "ERROR_DB");
+                log.error(Messages.Ticket.PROCESSING_ERROR, e);
+                redisTemplate.opsForValue().set(statusKey, "ERROR_RETRYING");
                 redisTemplate.delete(lockKey);
+
+                throw e;
             }
 
         } finally {

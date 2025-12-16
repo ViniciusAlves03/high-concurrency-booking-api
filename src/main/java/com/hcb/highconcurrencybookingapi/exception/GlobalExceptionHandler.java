@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
-import java.net.URI;
 import java.time.Instant;
 
 @RestControllerAdvice
@@ -16,8 +15,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<ProblemDetail> handleBusinessException(BusinessException e) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
-        problem.setTitle("Conflito de Regra de Negócio");
-        problem.setType(URI.create("https://api.seusistema.com/erros/regra-negocio"));
+        problem.setTitle("Business Rule Conflict");
         problem.setProperty("timestamp", Instant.now());
 
         return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);
@@ -25,10 +23,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(NoResourceFoundException.class)
     public ResponseEntity<ProblemDetail> handleResourceNotFound(NoResourceFoundException e) {
-        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "O recurso '" + e.getResourcePath() + "' não foi encontrado.");
-
-        problem.setTitle("Recurso Inexistente");
-        problem.setType(URI.create("https://api.seusistema.com/erros/nao-encontrado"));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, "The resource '" + e.getResourcePath() + "' wasn't found.");
+        problem.setTitle("Non-existent resource");
         problem.setProperty("timestamp", Instant.now());
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
@@ -37,7 +33,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ProblemDetail> handleGeneral(Exception e) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, e.getMessage());
-        problem.setTitle("Erro Interno");
+        problem.setTitle("Internal error");
         problem.setProperty("timestamp", Instant.now());
 
         return ResponseEntity.internalServerError().body(problem);

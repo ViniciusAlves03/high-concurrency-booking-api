@@ -1,0 +1,3 @@
+[submodule "k6"]
+	path = k6
+	url = https://github.com/ViniciusAlves03/high-concurrency-booking-k6.git
